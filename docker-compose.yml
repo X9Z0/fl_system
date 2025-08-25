@@ -1,0 +1,22 @@
+services:
+  server:
+    build:
+      context: ./server
+    container_name: fl_server
+    ports:
+      - "8080:8080"
+
+  client1:
+    build:
+      context: ./client_node
+    container_name: fl_client1
+
+  client2:
+    build:
+      context: ./client_node
+    container_name: fl_client2
+
+  client3:
+    build:
+      context: ./client_node
+    container_name: fl_client3
