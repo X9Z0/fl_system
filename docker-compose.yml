@@ -1,0 +1,13 @@
+networks:
+  flnet:
+    name: fl_network
+
+services:
+  server:
+    build:
+      context: ./server
+    container_name: fl_server
+    ports:
+      - "8080:8080"
+    networks:
+      - flnet
