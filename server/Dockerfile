@@ -1,5 +1,18 @@
-FROM python:3.11-slim
+FROM golang:1.23 AS build
+WORKDIR /src 
 
-WORKDIR /app
+COPY go.mod go.sum ./
 
-CMD ["python", "-m", "http.server", "8080"]
+RUN go mod download 
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/server . 
+
+FROM gcr.io/distroless/base-debian11 
+
+COPY --from=build /app/server /usr/local/bin/server
+
+EXPOSE 50051
+
+CMD ["/usr/local/bin/server"]
