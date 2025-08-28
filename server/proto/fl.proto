@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "./";
+package fl;
+
+service FederatedLogger {
+  rpc SendClientUpdate (ClientUpdate) returns (Ack) {}
+}
+
+message ClientUpdate {
+  string client_id = 1;
+  double cpu_percent = 2;
+  double memory_used_mb = 3;
+  double memory_percent = 4;
+  int64 net_sent_bytes = 5;
+  int64 net_recv_bytes = 6;
+  bool offloaded = 7; 
+}
+
+message Ack {
+  string message = 1;
+}

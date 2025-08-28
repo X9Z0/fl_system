@@ -31,10 +31,3 @@ def get_system_metrics():
         "net_sent_bytes": net_sent,
         "net_recv_bytes": net_recv,
     }
-
-
-if __name__ == "__main__":
-    while True:
-        metrics = get_system_metrics()
-        print(metrics)
-        time.sleep(2)
