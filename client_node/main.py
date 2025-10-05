@@ -12,6 +12,8 @@ import fl_pb2_grpc
 from metrics import get_system_metrics
 from offload import OffloadDecider
 
+from train_local import train_local_model, get_model_weights  
+
 SERVER_HOST = os.getenv("SERVER_HOST", "localhost")
 SERVER_PORT = int(os.getenv("SERVER_PORT", 50051))
 GRPC_TARGET = f"{SERVER_HOST}:{SERVER_PORT}"
@@ -42,6 +44,15 @@ def run():
 
             decision = decider.decide(metrics)
             offloaded_bool = decision == "offload"
+
+
+            if decision == "local":
+             print("[INFO] Training model locally...")
+             model = train_local_model(epochs=1)   # train small local model
+             weights = get_model_weights(model)
+             print("[INFO] Local training completed. Model ready to send to server.")
+            else:
+             print("[INFO] Offloading training to server (no local training performed).")
 
             update = fl_pb2.ClientUpdate(
                 client_id=str(client_id),
