@@ -63,4 +63,5 @@ def get_model_weights(model):
 if __name__ == "__main__":
     model = train_local_model()
     weights = get_model_weights(model)
+    send_model_update(client_id=1, weights=weights)
     print("Local training done. Model weights ready to send.")
