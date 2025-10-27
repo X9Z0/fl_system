@@ -5,6 +5,7 @@ package fl;
 
 service FederatedLogger {
   rpc SendClientUpdate (ClientUpdate) returns (Ack) {}
+  rpc SendModelUpdate (ModelUpdate) returns (Ack);
 }
 
 message ClientUpdate {
@@ -15,6 +16,15 @@ message ClientUpdate {
   int64 net_sent_bytes = 5;
   int64 net_recv_bytes = 6;
   bool offloaded = 7; 
+}
+
+message ModelUpdate {
+  string client_id = 1;
+  map<string, Weights> weights = 2;
+}
+
+message Weights {
+  repeated float values = 1;
 }
 
 message Ack {

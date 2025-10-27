@@ -3,6 +3,8 @@ import sys
 import time
 import uuid
 import grpc
+import itertools
+import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "proto"))
 
@@ -11,6 +13,8 @@ import fl_pb2_grpc
 
 from metrics import get_system_metrics
 from offload import OffloadDecider
+
+from train_local import train_local_model, get_model_weights  
 
 SERVER_HOST = os.getenv("SERVER_HOST", "localhost")
 SERVER_PORT = int(os.getenv("SERVER_PORT", 50051))
@@ -23,7 +27,51 @@ def make_stub(target: str):
     stub = fl_pb2_grpc.FederatedLoggerStub(channel)
     return channel, stub
 
+def send_model_update(client_id, weights):
+    client_id = int(client_id, 16)
+    channel = grpc.insecure_channel("localhost:50051")
+    stub = fl_pb2_grpc.FederatedLoggerStub(channel)
 
+    print(f"[DEBUG] Preparing model update for client {client_id}")
+
+    def flatten(lst):
+        return list(itertools.chain.from_iterable(
+            v if isinstance(v, (list, np.ndarray)) else [v] for v in lst
+        ))
+
+    weight_map = {}
+
+    for name, values in weights.items():
+       
+        if isinstance(values, np.ndarray):
+            values = values.tolist()
+
+        
+        if len(values) > 0 and isinstance(values[0], (list, np.ndarray)):
+            flat_values = flatten(values)
+        else:
+            flat_values = values
+
+        # Ensure all are floats (not strings)
+        cleaned_values = []
+        for v in flat_values:
+            try:
+                cleaned_values.append(float(v))
+            except (TypeError, ValueError):
+                print(f"[WARN] Skipping non-numeric in {name}: {v}")
+
+        weight_map[name] = fl_pb2.Weights(values=cleaned_values)
+
+    print(f"[DEBUG] Prepared {len(weight_map)} layers to send.")
+
+    try:
+        request = fl_pb2.ModelUpdate(client_id=int(client_id), weights=weight_map)
+        response = stub.SendModelUpdate(request)
+        print(f"[ACK] {response.message}")
+    except Exception as e:
+        print(f"[ERROR] Unexpected during send: {e}")
+
+    
 def run():
     client_id = os.getenv("CLIENT_ID", str(uuid.uuid4())[:8])
     decider = OffloadDecider(cpu_threshold=75.0, mem_threshold=70.0)
@@ -42,6 +90,17 @@ def run():
 
             decision = decider.decide(metrics)
             offloaded_bool = decision == "offload"
+
+
+            if decision == "local":
+             print("[INFO] Training model locally...")
+             model = train_local_model(epochs=1)   # train small local model
+             weights = get_model_weights(model)
+             print("[INFO] Local training completed. Model ready to send to server.")
+             send_model_update(client_id, weights)
+
+            else:
+             print("[INFO] Offloading training to server (no local training performed).")
 
             update = fl_pb2.ClientUpdate(
                 client_id=str(client_id),
