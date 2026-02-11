@@ -1,3 +1,5 @@
-psutil
 grpcio
-protobuf
+grpcio-tools
+numpy
+psutil
+docker
