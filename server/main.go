@@ -4,40 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	pb "github.com/fl-system1/fl_system/server/proto"
-	"google.golang.org/grpc"
 	"log"
 	"net"
-	"net/http"
-	"os"
-	"strconv"
-	"sync"
-	"time"
+
+	pb "github.com/fl-system1/fl_system/server/proto"
+	"google.golang.org/grpc"
 )
 
 type server struct {
 	pb.UnimplementedFederatedLoggerServer
-
-	mu sync.Mutex
-
-	// clients store last ClientUpdate + timestamp
-	clients map[string]*ClientStatus
-
-	// store model updates for the current aggregation round: client_id -> weights
-	receivedModels map[string]map[string][]float32
-
-	// global model
-	globalModel map[string][]float32
-	round       int64
-
-	// expected client count to trigger aggregation
-	expectedClients int
+	modelUpdates map[string]*pb.ModelUpdate
 }
 
-type ClientStatus struct {
-	LastUpdate   *pb.ClientUpdate `json:"last_update"`
-	LastSeenUnix int64            `json:"last_seen_unix"`
-	HasSentModel bool             `json:"has_sent_model"`
+func newServer() *server {
+	return &server{
+		modelUpdates: make(map[string]*pb.ModelUpdate),
+	}
 }
 
 func NewServer(expected int) *server {
@@ -203,6 +185,18 @@ func (s *server) restModelHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(modelInfo)
 }
 
+func (s *server) SendModelUpdate(ctx context.Context, update *pb.ModelUpdate) (*pb.Ack, error) {
+	log.Printf("[SERVER] Received model update from client %s", update.ClientId)
+
+	for name, w := range update.Weights {
+		log.Printf("  Layer: %s -> %d weights", name, len(w.Values))
+	}
+
+	s.modelUpdates[update.ClientId] = update
+
+	return &pb.Ack{Message: "Model update received"}, nil
+}
+
 func main() {
 	expectedStr := os.Getenv("EXPECTED_CLIENTS")
 	expected := 3
@@ -229,6 +223,7 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	grpcServer := grpc.NewServer()
+	s := newServer()
 	pb.RegisterFederatedLoggerServer(grpcServer, s)
 
 	fmt.Println("gRPC Server listening on :50051")

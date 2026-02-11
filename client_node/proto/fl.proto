@@ -5,8 +5,7 @@ package fl;
 
 service FederatedLogger {
   rpc SendClientUpdate (ClientUpdate) returns (Ack) {}
-  rpc SendModelUpdate (ModelUpdate) returns (Ack) {}
-  rpc GetGlobalModel (GlobalModelRequest) returns (GlobalModel) {}
+  rpc SendModelUpdate(ModelUpdate) returns (Ack);
 }
 
 message ClientUpdate {
@@ -36,6 +35,15 @@ message GlobalModelRequest {
 message GlobalModel {
   int64 round = 1;
   map<string, Weights> weights = 2;
+}
+
+message ModelUpdate {
+  int64 client_id = 1;
+  map<string, Weights> weights = 2;
+}
+
+message Weights {
+  repeated float values = 1;
 }
 
 message Ack {

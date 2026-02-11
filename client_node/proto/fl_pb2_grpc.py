@@ -5,7 +5,7 @@ import warnings
 
 import fl_pb2 as fl__pb2
 
-GRPC_GENERATED_VERSION = '1.74.0'
+GRPC_GENERATED_VERSION = '1.75.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -44,11 +44,6 @@ class FederatedLoggerStub(object):
                 request_serializer=fl__pb2.ModelUpdate.SerializeToString,
                 response_deserializer=fl__pb2.Ack.FromString,
                 _registered_method=True)
-        self.GetGlobalModel = channel.unary_unary(
-                '/fl.FederatedLogger/GetGlobalModel',
-                request_serializer=fl__pb2.GlobalModelRequest.SerializeToString,
-                response_deserializer=fl__pb2.GlobalModel.FromString,
-                _registered_method=True)
 
 
 class FederatedLoggerServicer(object):
@@ -66,12 +61,6 @@ class FederatedLoggerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetGlobalModel(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
 
 def add_FederatedLoggerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -84,11 +73,6 @@ def add_FederatedLoggerServicer_to_server(servicer, server):
                     servicer.SendModelUpdate,
                     request_deserializer=fl__pb2.ModelUpdate.FromString,
                     response_serializer=fl__pb2.Ack.SerializeToString,
-            ),
-            'GetGlobalModel': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetGlobalModel,
-                    request_deserializer=fl__pb2.GlobalModelRequest.FromString,
-                    response_serializer=fl__pb2.GlobalModel.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -145,33 +129,6 @@ class FederatedLogger(object):
             '/fl.FederatedLogger/SendModelUpdate',
             fl__pb2.ModelUpdate.SerializeToString,
             fl__pb2.Ack.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetGlobalModel(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/fl.FederatedLogger/GetGlobalModel',
-            fl__pb2.GlobalModelRequest.SerializeToString,
-            fl__pb2.GlobalModel.FromString,
             options,
             channel_credentials,
             insecure,

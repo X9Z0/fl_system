@@ -4,7 +4,7 @@ import sys
 import time
 import uuid
 import grpc
-import random
+import itertools
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "proto"))
@@ -14,10 +14,9 @@ import fl_pb2_grpc
 from metrics import get_system_metrics
 from offload import OffloadDecider
 
-# small synthetic training using numpy (avoid heavy dependencies if you want)
-# but using torch is okay if installed; here we simulate simple linear weights
+from train_local import train_local_model, get_model_weights  
 
-SERVER_HOST = os.getenv("SERVER_HOST", "fl_server")
+SERVER_HOST = os.getenv("SERVER_HOST", "localhost")
 SERVER_PORT = int(os.getenv("SERVER_PORT", 50051))
 GRPC_TARGET = f"{SERVER_HOST}:{SERVER_PORT}"
 
@@ -30,41 +29,51 @@ def make_stub(target: str):
     stub = fl_pb2_grpc.FederatedLoggerStub(channel)
     return channel, stub
 
+def send_model_update(client_id, weights):
+    client_id = int(client_id, 16)
+    channel = grpc.insecure_channel("localhost:50051")
+    stub = fl_pb2_grpc.FederatedLoggerStub(channel)
 
-def synthetic_train():
-    # returns a dict of layer_name -> list of floats
-    # tiny model: two layers "fc1" (4 weights), "fc2" (2 weights)
-    # pretend we trained and updated weights slightly from random
-    model = {
-        "fc1.weight": (np.random.rand(4).astype(np.float32) * 0.1).tolist(),
-        "fc2.weight": (np.random.rand(2).astype(np.float32) * 0.1).tolist(),
-    }
-    # simulate training noise
-    for k in model:
-        model[k] = [x + random.uniform(-0.01, 0.01) for x in model[k]]
-    return model
+    print(f"[DEBUG] Preparing model update for client {client_id}")
 
+    def flatten(lst):
+        return list(itertools.chain.from_iterable(
+            v if isinstance(v, (list, np.ndarray)) else [v] for v in lst
+        ))
 
-def send_model_update(stub, client_id, weights):
-    # convert to pb map[string]Weights
     weight_map = {}
-    for name, vals in weights.items():
-        w = fl_pb2.Weights()
-        for v in vals:
-            w.values.append(float(v))
-        weight_map[name] = w
-    req = fl_pb2.ModelUpdate(client_id=str(client_id), weights=weight_map)
-    resp = stub.SendModelUpdate(req)
-    print(f"[ModelUpdate ACK] {resp.message}")
 
+    for name, values in weights.items():
+       
+        if isinstance(values, np.ndarray):
+            values = values.tolist()
 
-def fetch_global_model(stub):
-    req = fl_pb2.GlobalModelRequest(round=0)
-    gm = stub.GetGlobalModel(req)
-    print(f"[GetGlobalModel] round={gm.round} layers={len(gm.weights)}")
-    return gm
+        
+        if len(values) > 0 and isinstance(values[0], (list, np.ndarray)):
+            flat_values = flatten(values)
+        else:
+            flat_values = values
 
+        # Ensure all are floats (not strings)
+        cleaned_values = []
+        for v in flat_values:
+            try:
+                cleaned_values.append(float(v))
+            except (TypeError, ValueError):
+                print(f"[WARN] Skipping non-numeric in {name}: {v}")
 
+        weight_map[name] = fl_pb2.Weights(values=cleaned_values)
+
+    print(f"[DEBUG] Prepared {len(weight_map)} layers to send.")
+
+    try:
+        request = fl_pb2.ModelUpdate(client_id=int(client_id), weights=weight_map)
+        response = stub.SendModelUpdate(request)
+        print(f"[ACK] {response.message}")
+    except Exception as e:
+        print(f"[ERROR] Unexpected during send: {e}")
+
+    
 def run():
     client_id = os.getenv("CLIENT_ID", str(uuid.uuid4())[:8])
     decider = OffloadDecider(cpu_threshold=75.0, mem_threshold=80.0)
@@ -87,7 +96,17 @@ def run():
 
             offloaded_bool = decision == "offload"
 
-            # Send client metrics
+
+            if decision == "local":
+             print("[INFO] Training model locally...")
+             model = train_local_model(epochs=1)   # train small local model
+             weights = get_model_weights(model)
+             print("[INFO] Local training completed. Model ready to send to server.")
+             send_model_update(client_id, weights)
+
+            else:
+             print("[INFO] Offloading training to server (no local training performed).")
+
             update = fl_pb2.ClientUpdate(
                 client_id=str(client_id),
                 cpu_percent=cpu_percent,
